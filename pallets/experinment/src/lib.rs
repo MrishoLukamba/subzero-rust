@@ -11,14 +11,14 @@ pub mod pallet {
         traits::Randomness,
         pallet_prelude::*
     };
-    
+
     use frame_system::pallet_prelude::*;
     use sp_io::hashing::blake2_128;
 	use scale_info::TypeInfo;
     use sp_std::vec::Vec;
     use frame_support::sp_runtime::traits::Printable;
     use frame_support::sp_runtime::print;
-    
+
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -30,7 +30,7 @@ pub mod pallet {
     }
 
     //custom struct
-    
+
     #[derive(Encode, Decode,TypeInfo, Clone, RuntimeDebug)]
     #[scale_info(skip_type_params(T))]
     pub struct Profile<T: Config> {
@@ -42,7 +42,7 @@ pub mod pallet {
         pub lucky: T::Hash,
     }
 
-    
+
 
 
     #[pallet::pallet]
@@ -50,7 +50,7 @@ pub mod pallet {
     pub struct Pallet<T>(_);
 
     #[pallet::storage]
-    #[pallet::getter(fn getProfile)]
+    #[pallet::getter(fn get_profile)]
     pub type ProfileDb<T: Config> = StorageMap<_,Blake2_128Concat,T::Hash, Profile<T>>;
 
     #[pallet::event]
@@ -69,22 +69,22 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl <T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        
+
     }
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
 
         #[pallet::weight(100)]
-        pub fn createProfile(origin: OriginFor<T>, name: Vec<u8>, age: u32, gender: Vec<u8>,lucky_number:u8 ) -> DispatchResult {
+        pub fn create_profile(origin: OriginFor<T>, name: Vec<u8>, age: u32, gender: Vec<u8>,lucky_number:u8 ) -> DispatchResult {
 
             let _= ensure_signed(origin)?;
             let get_lucky = T::Random::random(&[lucky_number]).0;
 
             let time = <frame_system::Pallet<T>>::block_number();
             let profile_id = T::Hashing::hash_of(&name);
-            
-            let Outline = Profile {
+
+            let outline = Profile {
                 name : name,
                 age: age,
                 id: profile_id,
@@ -93,12 +93,12 @@ pub mod pallet {
                 lucky: get_lucky,
             };
 
-            let key = T::Hashing::hash_of(&Outline);
+            let key = T::Hashing::hash_of(&outline);
 
             Self::deposit_event(Event::ProfileCreated);
 
-            <ProfileDb<T>>::insert(key, Outline);
-            
+            <ProfileDb<T>>::insert(key, outline);
+
 
             Ok(())
         }
