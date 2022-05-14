@@ -3,6 +3,16 @@
 
 pub use pallet::*;
 
+/// 1.  Have a sudo account
+///
+/// 2. Have a storage with bounded vector
+///
+/// 3. Configure maximum no of members
+///
+/// 4. Only sudo account can add and remove members
+///
+
+
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::{
@@ -11,6 +21,7 @@ pub mod pallet {
 		storage::bounded_vec::BoundedVec,
 
 	};
+
 	use frame_system::pallet_prelude::*;
 
 
@@ -19,6 +30,10 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// Maximum number of members
+		#[pallet::constant]
+		type MaxMembers: Get<u32>;
 	}
 
 	#[pallet::pallet]
@@ -27,63 +42,78 @@ pub mod pallet {
 
 
 	#[pallet::storage]
-	#[pallet::getter(fn get_value)]
-	pub type Number<T> = StorageValue<_, u32,ValueQuery>;
+	#[pallet::getter(fn get_members)]
+	pub type Members<T:Config> = StorageValue<_, BoundedVec<T::AccountId, T::MaxMembers>,ValueQuery>;
 
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		IncrementedNumber(u32,T::AccountId),
-		DecrementedNumber(u32,T::AccountId),
-		NumberStored(u32, T::AccountId),
+		//Time and AccountId for new member added event
+		NewMemberAdded(T::BlockNumber, T::AccountId),
+		// Time and AccountId for member removed
+		MemberRemoved(T::BlockNumber, T::AccountId),
 	}
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
-		StorageUnderflow,
-		StorageOverflow,
+		NotAuthorized,
+		RootCannotBeMember,
+		MembersLimitExceeded,
+		MemberNotFound,
+
 	}
 
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(1000)]
-		pub fn get_number(origin:OriginFor<T>) -> DispatchResult{
-			let owner = ensure_signed(origin)?;
+		#[pallet::weight(0)]
+		pub fn add_member(
+			origin:OriginFor<T>,
+			member: T::AccountId,
 
-			let number = Self::get_value();
+		) -> DispatchResult {
 
-			Self::deposit_event(Event::NumberStored(number, owner));
+			ensure_signed(origin)?;
+
+
+			//updating the storage
+			<Members<T>>::try_mutate(|mem_vec| {
+				mem_vec.try_push(member.clone())
+			}).map_err(|_| <Error<T>>::MembersLimitExceeded)?;
+
+			let time = <frame_system::Pallet<T>>::block_number();
+
+			Self::deposit_event(Event::NewMemberAdded(time, member.clone()));
 			Ok(())
 		}
 
-		#[pallet::weight(1000)]
-		pub fn increment(origin:OriginFor<T>, number:u32) -> DispatchResult{
-			let owner = ensure_signed(origin)?;
+		#[pallet::weight(0)]
+		pub fn remove_member(
+			origin:OriginFor<T>,
+			member: T::AccountId,
 
-			let count = Self::get_value().checked_add(number).ok_or(<Error<T>>::StorageOverflow)?;
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			// changing the storage
+			<Members<T>>::try_mutate(|mem_vec|{
+				if let Some(index) = mem_vec.iter().position(|mem| *mem == member.clone()){
+					mem_vec.remove(index);
+					return Ok(());
+				}
+				Err(())
+			}).map_err(|_| <Error<T>>::MemberNotFound)?;
 
-			<Number<T>>::put(count);
-			Self::deposit_event(Event::IncrementedNumber(count,owner));
+
+			let time = <frame_system::Pallet<T>>::block_number();
+
+			Self::deposit_event(Event::MemberRemoved(time,member.clone()));
+
 			Ok(())
-
-		}
-
-		#[pallet::weight(1000)]
-		pub fn decrement(origin:OriginFor<T>, number:u32) -> DispatchResult{
-			let owner = ensure_signed(origin)?;
-
-			let count = Self::get_value().checked_sub(number).ok_or(<Error<T>>::StorageUnderflow)?;
-
-			<Number<T>>::put(count);
-			Self::deposit_event(Event::DecrementedNumber(count,owner));
-
-			Ok(())
-
 		}
 	}
+
   }
 
 
