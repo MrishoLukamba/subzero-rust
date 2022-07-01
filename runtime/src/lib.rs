@@ -10,7 +10,6 @@ use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 use sp_api::impl_runtime_apis;
-use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -83,7 +82,7 @@ pub mod opaque {
 
 	impl_opaque_keys! {
 		pub struct SessionKeys {
-			pub aura: Aura,
+			pub babe: babe,
 			pub grandpa: Grandpa,
 		}
 	}
@@ -200,10 +199,33 @@ impl frame_system::Config for Runtime {
 
 impl pallet_randomness_collective_flip::Config for Runtime {}
 
-impl pallet_aura::Config for Runtime {
-	type AuthorityId = AuraId;
-	type DisabledValidators = ();
-	type MaxAuthorities = ConstU32<32>;
+parameter_types!{
+	pub const EpochDuration:u64 = 100;
+	//you can change number of validators here
+	pub const MaxAuthorities: u32 = 10;
+}
+
+impl pallet_babe::Config for Runtime{
+	type EpochDuration = EpochDuration;
+	type ExpectedBlockTime = MILLISECS_PER_BLOCK;
+	type EpochChangeTrigger = pallet_babe::SameAuthoritiesForever;
+	//pallet session
+	type KeyOwnerProofSystem = ();
+	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+                         		KeyTypeId,
+                         		pallet_babe::AuthorityId,
+                         	)>>::Proof;
+
+    type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+                                  		KeyTypeId,
+                                  		pallet_babe::AuthorityId,
+                                  	)>>::IdentificationTuple;
+    //pallet session
+    type HandleEquivocation = ();
+    type WeightInfo = ();
+    type MaxAuthorities = MaxAuthorities;
+    //at the moment there is no logic implemented for disabled validators
+    type DisabledValidators = ();
 }
 
 impl pallet_grandpa::Config for Runtime {
